@@ -1,30 +1,45 @@
 import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 
 const COR_BIM = "#A10D4F";
-const COR_BIM_2 = "#C2185B";
+const COR_BIM_ESCURO = "#6D0035";
 const COR_CLARO = "#FCE4EC";
 
 function Card({ children, className = "" }) {
-  return <div className={`rounded-3xl border border-slate-200 bg-white shadow-xl ${className}`}>{children}</div>;
+  return (
+    <div className={`rounded-[28px] border border-slate-200 bg-white/95 p-6 shadow-xl ${className}`}>
+      {children}
+    </div>
+  );
 }
 
-function CardContent({ children, className = "" }) {
-  return <div className={`p-5 ${className}`}>{children}</div>;
-}
-
-function Button({ children, onClick, disabled, className = "", style = {}, title = "" }) {
+function Button({ children, onClick, disabled = false, className = "" }) {
   return (
     <button
       type="button"
-      title={title}
       disabled={disabled}
       onClick={disabled ? undefined : onClick}
       className={`rounded-2xl px-4 py-3 font-bold transition ${disabled ? "cursor-not-allowed opacity-40" : "hover:opacity-90"} ${className}`}
-      style={style}
     >
       {children}
     </button>
+  );
+}
+
+function TextoFormatado({ texto, className = "" }) {
+  const partes = String(texto || "").split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <div className={`whitespace-pre-line leading-7 ${className}`}>
+      {partes.map((parte, index) => {
+        if (parte.startsWith("**") && parte.endsWith("**")) {
+          return (
+            <mark key={index} className="rounded bg-yellow-100 px-1 font-black text-slate-900">
+              {parte.slice(2, -2)}
+            </mark>
+          );
+        }
+        return <React.Fragment key={index}>{parte}</React.Fragment>;
+      })}
+    </div>
   );
 }
 
@@ -34,12 +49,8 @@ const horariosTurno = {
   Noite: "23:00 - 07:00",
 };
 
-const turnos = [
-  { nome: "Manhã", icon: "🌅" },
-  { nome: "Tarde", icon: "🌇" },
-  { nome: "Noite", icon: "🌙" },
-];
-
+const turnos = ["Manhã", "Tarde", "Noite"];
+const processosNoite = ["Geral", "Fecho IDW", "PCOMB", "Fecho ITM", "SIMO"];
 const operadoresBase = [
   "Elton Nobre",
   "Edmilson Nhacundela",
@@ -53,413 +64,694 @@ const operadoresBase = [
   "Alexandre Macamo",
 ];
 
+const procedimentosPorTurno = {
+  Manhã: [
+    { hora: "07:00", descricao: "Receber passagem do turno da noite." },
+    { hora: "07:15", descricao: "Validar canais ATM/POS, monitorização e alertas." },
+    { hora: "08:00", descricao: "Executar validações de fechos, ficheiros e relatórios da manhã." },
+    { hora: "14:30", descricao: "Preparar passagem para o turno da tarde." },
+  ],
+  Tarde: [
+    { hora: "15:00", descricao: "Receber passagem do turno da manhã." },
+    { hora: "17:50", descricao: "Executar SBMJOB CMD(CALL PGM(EODTIMPG01)) JOB(EODTIM)." },
+    { hora: "18:00", descricao: "Executar ITM Settlement e balancear ficheiros com F11." },
+    { hora: "20:15", descricao: "Executar ITM Repost." },
+    { hora: "22:30", descricao: "Preparar passagem para o turno da noite." },
+  ],
+  Noite: [
+    { hora: "23:00", descricao: "Receber passagem do turno da tarde e validar pendências." },
+    { hora: "06:30", descricao: "Preparar relatório final e entregar passagem ao turno da manhã." },
+  ],
+};
+
+const procedimentosNoitePorProcesso = {
+  Geral: procedimentosPorTurno.Noite,
+  "Fecho IDW": [
+    { hora: "23:15", descricao: "**Fecho IDW**\nValidar relatórios e processos IDW disponíveis para acompanhamento nocturno." },
+    { hora: "23:30", descricao: "Confirmar execução/estado do fecho IDW e registar pendências." },
+    { hora: "00:00", descricao: "Validar relatórios PGL/IDW e evidenciar no relatório de turno." },
+  ],
+  PCOMB: [
+    { hora: "00:30", descricao: "**PCOMB**\nMonitorar arranque do PCOMB e confirmar jobs esperados." },
+    { hora: "01:00", descricao: "Acompanhar evolução do PCOMB, MSGW, locks ou falhas." },
+    { hora: "02:30", descricao: "Confirmar conclusão/estado do PCOMB e registar evidência." },
+  ],
+  "Fecho ITM": [
+    { hora: "23:45", descricao: "**Fecho ITM**\nValidar execução do fecho ITM e processos dependentes." },
+    { hora: "01:30", descricao: "Confirmar ITM Repost/After Repost e integração posterior." },
+  ],
+  SIMO: [
+    { hora: "01:00", descricao: "**SIMO**\nAcompanhar transacções SIMO após integração/repost." },
+    { hora: "03:00", descricao: "Registar timeouts, anomalias ou pendências SIMO." },
+  ],
+};
+
 const checklistPorTurno = {
   Manhã: [
     ["Sala de Máquinas", "Registar temperatura e humidade da SEDE AS400", "Início/Fim"],
-    ["Sala de Máquinas", "Registar temperatura e humidade da SEDE Comunicações", "Início/Fim"],
     ["Fechos / BD", "Validar Ark_GL comparando com a Query", "Até 08:00"],
-    ["Fechos / BD", "Validar Ark_MR comparando com a Query", "Até 08:00"],
     ["Batch / PCOMB", "Validar PCOMB PRD", "Até 08:00"],
-    ["Cartões", "Validar Visa Incoming / Outgoing", "Manhã"],
-    ["Cartões", "Validar MasterCard Incoming / Outgoing", "12:00"],
-    ["Monitorização", "Verificar actualização das telas nas TV’s", "07h-15h"],
     ["Passagem de Turno", "Entregar relatório ao turno da tarde", "14:30 - 15:00"],
   ],
   Tarde: [
     ["Sala de Máquinas", "Registar temperatura e humidade da SEDE AS400", "Inicial / Final"],
-    ["Monitorização", "Validar se o SMSSHEL está activo", "15h-23h"],
-    ["Relatórios / IDW", "Verificar relatórios PGL IDW", "15h-23h"],
-    ["Relatórios / IDW", "Validar duplicados", "15h-23h"],
-    ["Cheques", "Confirmar cheques", "15h-23h"],
-    ["Mapas", "Verificar mapas PBIM, GBIM e MMF", "15h-23h"],
-    ["Backup", "Validar execução do BACKUP_BQRY", "Até 17:00"],
-    ["ATM / POS", "Validar se as transacções ATM e POS estão a ser aprovadas", "15h-23h"],
-    ["VISA", "Executar OUTGOING VISA - processamento e envio", "Tarde"],
-    ["MasterCard", "Executar MasterCard IPM Outgoing Process", "Tarde"],
-    ["VSS", "Validar cadeia de VSS e contactar SIMO se necessário", "20:00"],
     ["FINANCA", "Validar FINANCA", "19:00"],
-    ["PRE-BATCH", "Validar PRE-BATCH", "20:30"],
     ["PCOMB", "Executar PCOMB DSV", "21:00"],
     ["Passagem de Turno", "Entregar relatório ao turno da noite", "22:30 - 23:00"],
   ],
   Noite: [
     ["Sala de Máquinas", "Registar temperatura e humidade da SEDE AS400", "Inicial / Final"],
-    ["ATM / POS", "Validar se as transações ATM e POS estão a ser aprovadas", "Noite"],
-    ["ITM", "Executar FECHO DO ITM", "18:00"],
-    ["ITM", "Executar ITM SETTLEMENT", "Noite"],
-    ["Batch", "Executar COPY TO NIGHTS", "Noite"],
-    ["Cartões", "Executar CREDIT CARD PRE-PROCESS", "Noite"],
-    ["Cartões", "Executar CREDIT CARD DAILY PROCESS", "Noite"],
-    ["GL", "Validar integração do GL e comparar totais", "Noite"],
-    ["VISA", "Executar OUTGOING VISA - Processamento e Envio", "Noite"],
-    ["MasterCard", "Executar MasterCard OUTGOING", "Noite"],
-    ["FINANCA", "Validar FINANCA", "19:00"],
-    ["PRE-BATCH", "Executar PRE-BATCH", "20:30"],
-    ["PCOMB", "Monitorar PCOMB", "Madrugada"],
-    ["ROF01", "Reiniciar ROF01", "Madrugada"],
-    ["SIMO", "Acompanhar SIMO após ITM REPOST", "01h-04h"],
+    ["ATM / POS", "Validar se as transacções ATM e POS estão a ser aprovadas", "Noite"],
+    ["Batch", "Acompanhar processamento nocturno", "Madrugada"],
     ["Passagem de Turno", "Entregar relatório ao turno da manhã", "06:30 - 07:00"],
   ],
 };
 
 const permissoes = {
-  Operador: { checklist: true, upload: true, incidentes: true, editarIncidente: true, eliminar: false, validar: false, admin: false, descricao: "Preenche checklist, faz upload, cria/edita incidentes e submete relatório." },
-  Supervisor: { checklist: true, upload: true, incidentes: true, editarIncidente: true, eliminar: true, validar: true, admin: false, descricao: "Valida/rejeita relatórios, acompanha pendências e elimina incidentes." },
-  Auditoria: { checklist: false, upload: false, incidentes: false, editarIncidente: false, eliminar: false, validar: false, admin: false, descricao: "Somente leitura: consulta relatórios, evidências, histórico e auditoria." },
-  Administrador: { checklist: true, upload: true, incidentes: true, editarIncidente: true, eliminar: true, validar: true, admin: true, descricao: "Acesso total: utilizadores, permissões, relatórios, incidentes e auditoria." },
+  Operador: { checklist: true, incidentes: true, configurar: false, validar: false, admin: false },
+  Supervisor: { checklist: true, incidentes: true, configurar: true, validar: true, admin: false },
+  Auditoria: { checklist: false, incidentes: false, configurar: false, validar: false, admin: false },
+  Administrador: { checklist: true, incidentes: true, configurar: true, validar: true, admin: true },
 };
 
-const perfilCor = {
-  Operador: "#2563EB",
-  Supervisor: "#059669",
-  Auditoria: "#7C3AED",
-  Administrador: "#DC2626",
-};
-
-const incidentesIniciais = [
-  { id: "INC000066476", canal: "ATM/POS", hora: "14h40 - 17h00", descricao: "Elevado número de timeouts nas transacções", estado: "Escalado à SIMO" },
-  { id: "WO0000167787", canal: "Batch", hora: "08h12 - 08h15", descricao: "Atraso na recepção de ficheiros diários", estado: "Em acompanhamento" },
-];
-
-const relatoriosIniciais = [
-  { id: "RT-2026-0509-001", data: "09/05/2026", operadoresTurno: "Elton Nobre / Edmilson Nhacundela", turno: "Manhã", hora: horariosTurno.Manhã, progresso: 100, estado: "Validado", supervisor: "Idricio Langa", anexos: ["relatorio_manha.pdf"] },
-  { id: "RT-2026-0508-003", data: "08/05/2026", operadoresTurno: "Edmilson Nhacundela / Kemmy Aruma", turno: "Noite", hora: horariosTurno.Noite, progresso: 75, estado: "Com Pendências", supervisor: "Pendente", anexos: [] },
-  { id: "RT-2026-0508-002", data: "08/05/2026", operadoresTurno: "Faize Pinto / Milton Cossa", turno: "Tarde", hora: horariosTurno.Tarde, progresso: 88, estado: "Submetido", supervisor: "Aguardando", anexos: ["prints_monitoria.zip"] },
-];
-
-function criarTarefas(turno) {
+function criarChecklist(turno) {
   return (checklistPorTurno[turno] || []).map(([categoria, tarefa, horario], index) => ({
-    id: `${turno}-${index + 1}`,
+    id: `${turno}-${index}`,
     categoria,
     tarefa,
     horario,
-    feito: index < 3,
-    observacao: index < 3 ? "OK" : "",
+    feito: false,
+    observacao: "",
   }));
 }
 
-function estadoClasse(estado) {
-  if (estado === "Validado") return "bg-emerald-100 text-emerald-700";
-  if (estado === "Rejeitado" || estado === "Com Pendências") return "bg-amber-100 text-amber-700";
-  return "bg-blue-100 text-blue-700";
+function formatarTamanho(bytes) {
+  if (!bytes) return "0 KB";
+  const kb = bytes / 1024;
+  return kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(1)} MB`;
 }
 
 export default function PrototipoRelatoriosGestaoTurnos() {
-  const [operadores, setOperadores] = useState(operadoresBase);
-  const [utilizadoresExtra, setUtilizadoresExtra] = useState(["Idricio Langa", "Auditoria Interna"]);
-  const utilizadoresSistema = useMemo(() => [...operadores, ...utilizadoresExtra], [operadores, utilizadoresExtra]);
-
-  const [perfisUtilizadores, setPerfisUtilizadores] = useState(() => {
+  const [operadores] = useState(operadoresBase);
+  const [extraUsers, setExtraUsers] = useState(["Idricio Langa", "Auditoria Interna"]);
+  const utilizadores = useMemo(() => [...operadores, ...extraUsers], [operadores, extraUsers]);
+  const [perfis, setPerfis] = useState(() => {
     const base = {};
-    operadoresBase.forEach((op) => { base[op] = "Operador"; });
+    operadoresBase.forEach((nome) => (base[nome] = "Operador"));
     base["Alexandre Macamo"] = "Administrador";
     base["Idricio Langa"] = "Supervisor";
     base["Auditoria Interna"] = "Auditoria";
     return base;
   });
 
-  const [perfilActivo, setPerfilActivo] = useState("Administrador");
   const [utilizadorLogado, setUtilizadorLogado] = useState("Alexandre Macamo");
-  const [utilizadorAAlterar, setUtilizadorAAlterar] = useState("Elton Nobre");
-  const [novoPerfilUtilizador, setNovoPerfilUtilizador] = useState("Operador");
-  const [novoUtilizador, setNovoUtilizador] = useState({ nome: "", contacto: "", email: "", perfil: "Operador" });
-
+  const [perfilActivo, setPerfilActivo] = useState("Administrador");
+  const [paginaActiva, setPaginaActiva] = useState("Dashboard");
   const [turno, setTurno] = useState("Manhã");
-  const [tarefas, setTarefas] = useState(criarTarefas("Manhã"));
+  const [processoNoite, setProcessoNoite] = useState("Geral");
   const [operador1, setOperador1] = useState("Elton Nobre");
   const [operador2, setOperador2] = useState("Edmilson Nhacundela");
-  const [estadoRelatorio, setEstadoRelatorio] = useState("Rascunho");
-  const [mensagem, setMensagem] = useState("");
+  const [checklist, setChecklist] = useState(criarChecklist("Manhã"));
+  const [procedimentosFeitos, setProcedimentosFeitos] = useState({});
+  const [mensagem, setMensagem] = useState("Modo preview: visual igual ao sistema final. Em produção, estes dados vêm da API C# + SQL Server.");
+  const [apiStatus, setApiStatus] = useState("API C# ligada");
   const [observacoes, setObservacoes] = useState("");
-  const [justificativa, setJustificativa] = useState("");
-  const [comentarioSupervisor, setComentarioSupervisor] = useState("");
-  const [ficheiros, setFicheiros] = useState([]);
-  const [anexos, setAnexos] = useState([]);
+  const [estadoRelatorio, setEstadoRelatorio] = useState("Rascunho");
+  const [ficheirosRelatorio, setFicheirosRelatorio] = useState([]);
+  const [novaChecklist, setNovaChecklist] = useState({ categoria: "", tarefa: "", horario: "" });
+  const [novoProcedimento, setNovoProcedimento] = useState({ hora: "", descricao: "" });
+  const [procedimentosCustom, setProcedimentosCustom] = useState({ Manhã: [], Tarde: [], Noite: [] });
+  const [incidentes, setIncidentes] = useState([
+    { id: "INC000066476", canal: "ATM/POS", descricao: "Elevado número de timeouts", estado: "Escalado" },
+  ]);
+  const [acessosDataCenter, setAcessosDataCenter] = useState([
+    {
+      id: "DC-001",
+      visitante: "Técnico Fornecedor",
+      empresa: "Fornecedor Externo",
+      motivo: "Manutenção preventiva",
+      autorizadoPor: "Idricio Langa",
+      acompanhadoPor: "Alexandre Macamo",
+      emailAutorizacao: "email_autorizacao.pdf",
+      entrada: "09:30",
+      saida: "",
+      estado: "Dentro do Data Center",
+    },
+  ]);
+  const [novoAcessoDC, setNovoAcessoDC] = useState({
+    visitante: "",
+    empresa: "",
+    motivo: "",
+    autorizadoPor: "",
+    acompanhadoPor: "",
+    emailAutorizacao: "",
+    entrada: "",
+    saida: "",
+  });
+  const [logs, setLogs] = useState([
+    {
+      id: "LOG-001",
+      dataHora: "09:30",
+      utilizador: "Alexandre Macamo",
+      perfil: "Administrador",
+      accao: "Registo Data Center",
+      detalhe: "Acesso DC-001 registado com email de autorização.",
+    },
+  ]);
 
-  const [incidentes, setIncidentes] = useState(incidentesIniciais);
-  const [modalIncidente, setModalIncidente] = useState(false);
-  const [incidenteEditarId, setIncidenteEditarId] = useState(null);
-  const [incidenteEliminar, setIncidenteEliminar] = useState(null);
-  const [formIncidente, setFormIncidente] = useState({ referencia: "", canal: "ATM/POS", hora: "", descricao: "", estado: "Em acompanhamento" });
+  const pode = permissoes[perfilActivo] || permissoes.Operador;
+  const procedimentosBase = turno === "Noite" ? procedimentosNoitePorProcesso[processoNoite] || procedimentosNoitePorProcesso.Geral : procedimentosPorTurno[turno] || [];
+  const procedimentos = [...procedimentosBase, ...(procedimentosCustom[turno] || [])];
+  const progressoChecklist = Math.round((checklist.filter((x) => x.feito).length / Math.max(checklist.length, 1)) * 100);
+  const progressoProcedimentos = Math.round((procedimentos.filter((_, index) => procedimentosFeitos[`${turno}-${processoNoite}-${index}`]).length / Math.max(procedimentos.length, 1)) * 100);
 
-  const [relatorios, setRelatorios] = useState(relatoriosIniciais);
-  const [pesquisa, setPesquisa] = useState("");
-  const [relatorioAberto, setRelatorioAberto] = useState(null);
-
-  const pode = permissoes[perfilActivo];
-  const operadoresTurno = [operador1, operador2].filter(Boolean).join(" / ");
-  const horario = horariosTurno[turno];
-  const feitas = tarefas.filter((t) => t.feito).length;
-  const progresso = Math.round((feitas / Math.max(tarefas.length, 1)) * 100);
-  const pendentes = tarefas.filter((t) => !t.feito);
-
-  const relatorioAtual = useMemo(() => ({
-    id: "RT-2026-0509-001",
-    data: "09/05/2026",
-    turno,
-    hora: horario,
-    operadoresTurno,
-    supervisor: "Idricio Langa",
-    estado: estadoRelatorio,
-    progresso,
-    anexos,
-    ficheiros,
-    observacoes,
-    justificativa,
-    comentarioSupervisor,
-    tarefas,
-    incidentes: incidentes.length,
-  }), [turno, horario, operadoresTurno, estadoRelatorio, progresso, anexos, ficheiros, observacoes, justificativa, comentarioSupervisor, tarefas, incidentes.length]);
-
-  const relatoriosFiltrados = relatorios.filter((r) =>
-    [r.id, r.data, r.operadoresTurno, r.turno, r.estado].join(" ").toLowerCase().includes(pesquisa.toLowerCase())
-  );
+  function criarLog(accao, detalhe) {
+    const novoLog = {
+      id: `LOG-${String(logs.length + 1).padStart(3, "0")}`,
+      dataHora: new Date().toLocaleString("pt-PT"),
+      utilizador: utilizadorLogado,
+      perfil: perfilActivo,
+      accao,
+      detalhe,
+    };
+    setLogs((prev) => [novoLog, ...prev]);
+  }
 
   function entrarComo(nome) {
-    const perfil = perfisUtilizadores[nome] || "Operador";
+    const perfil = perfis[nome] || "Operador";
     setUtilizadorLogado(nome);
     setPerfilActivo(perfil);
-    setMensagem(`${nome} entrou no sistema com perfil ${perfil}.`);
-  }
-
-  function seleccionarUtilizadorParaAlterar(nome) {
-    const perfil = perfisUtilizadores[nome] || "Operador";
-    setUtilizadorAAlterar(nome);
-    setNovoPerfilUtilizador(perfil);
-    setMensagem(`Utilizador seleccionado: ${nome}. Perfil actual: ${perfil}.`);
-  }
-
-  function gravarPermissao() {
-    if (!pode.admin) {
-      setMensagem("Apenas Administrador pode alterar permissões.");
-      return;
-    }
-    setPerfisUtilizadores((prev) => ({ ...prev, [utilizadorAAlterar]: novoPerfilUtilizador }));
-    setMensagem(`Permissão actualizada: ${utilizadorAAlterar} agora é ${novoPerfilUtilizador}.`);
-  }
-
-  function cadastrarUtilizador() {
-    if (!pode.admin) {
-      setMensagem("Apenas Administrador pode cadastrar utilizadores.");
-      return;
-    }
-    const nome = novoUtilizador.nome.trim();
-    if (!nome) {
-      setMensagem("Preencha o nome do utilizador.");
-      return;
-    }
-    if (utilizadoresSistema.includes(nome)) {
-      setMensagem("Este utilizador já existe.");
-      return;
-    }
-    if (novoUtilizador.perfil === "Operador") setOperadores((prev) => [...prev, nome]);
-    else setUtilizadoresExtra((prev) => [...prev, nome]);
-    setPerfisUtilizadores((prev) => ({ ...prev, [nome]: novoUtilizador.perfil }));
-    setMensagem(`Utilizador ${nome} cadastrado com perfil ${novoUtilizador.perfil}.`);
-    setNovoUtilizador({ nome: "", contacto: "", email: "", perfil: "Operador" });
+    setMensagem(`${nome} entrou como ${perfil}.`);
+    criarLog("Login", `${nome} entrou no sistema como ${perfil}.`);
   }
 
   function mudarTurno(novoTurno) {
-    if (!pode.checklist) {
-      setMensagem(`${perfilActivo}: sem permissão para alterar turno.`);
-      return;
-    }
+    if (!pode.checklist) return setMensagem(`${perfilActivo}: sem permissão para alterar turno.`);
     setTurno(novoTurno);
-    setTarefas(criarTarefas(novoTurno));
-    setEstadoRelatorio("Rascunho");
-    setMensagem(`Checklist do turno da ${novoTurno} carregada.`);
+    setChecklist(criarChecklist(novoTurno));
+    setProcessoNoite("Geral");
+    setMensagem(`Turno ${novoTurno} carregado.`);
+    criarLog("Mudança de turno", `Turno alterado para ${novoTurno}.`);
   }
 
-  function toggleTarefa(id) {
-    if (!pode.checklist) {
-      setMensagem(`${perfilActivo}: sem permissão para alterar checklist.`);
-      return;
+  function toggleChecklist(id) {
+    if (!pode.checklist) return;
+    const itemChecklist = checklist.find((x) => x.id === id);
+    const novoEstado = !(itemChecklist && itemChecklist.feito);
+    setChecklist((prev) => prev.map((item) => item.id === id ? { ...item, feito: !item.feito, observacao: !item.feito ? "OK" : "" } : item));
+    if (itemChecklist) {
+      criarLog(
+        novoEstado ? "Checklist concluída" : "Checklist desmarcada",
+        `${itemChecklist.categoria} - ${itemChecklist.tarefa} (${turno}) por ${utilizadorLogado}.`
+      );
     }
-    setTarefas((prev) => prev.map((t) => t.id === id ? { ...t, feito: !t.feito, observacao: !t.feito ? "OK" : "" } : t));
   }
 
-  function actualizarObservacao(id, valor) {
-    if (!pode.checklist) return setMensagem(`${perfilActivo}: sem permissão para alterar observações.`);
-    setTarefas((prev) => prev.map((t) => t.id === id ? { ...t, observacao: valor } : t));
+  function toggleProcedimento(index) {
+    if (!pode.checklist) return;
+    const chave = `${turno}-${processoNoite}-${index}`;
+    const procedimento = procedimentos[index];
+    const novoEstado = !procedimentosFeitos[chave];
+    setProcedimentosFeitos((prev) => ({ ...prev, [chave]: !prev[chave] }));
+    if (procedimento) {
+      criarLog(
+        novoEstado ? "Procedimento executado" : "Procedimento revertido",
+        `${procedimento.hora} - ${procedimento.descricao.replace(/\*\*/g, "")} (${turno}/${processoNoite}).`
+      );
+    }
   }
 
-  function carregarAnexos(event) {
-    if (!pode.upload) return setMensagem(`${perfilActivo}: sem permissão para upload.`);
-    const novos = Array.from(event.target.files || []).map((file) => ({ nome: file.name, url: URL.createObjectURL(file), carregadoEm: new Date().toLocaleString("pt-MZ") }));
-    setFicheiros((prev) => [...prev, ...novos]);
-    setAnexos((prev) => [...prev, ...novos.map((f) => f.nome)]);
-    if (novos.length) setMensagem(`${novos.length} ficheiro(s) carregado(s).`);
+  function adicionarProcedimento() {
+    if (!pode.configurar) return setMensagem(`${perfilActivo}: sem permissão para adicionar procedimento.`);
+    if (!novoProcedimento.hora.trim() || !novoProcedimento.descricao.trim()) return setMensagem("Preencha hora e descrição.");
+    setProcedimentosCustom((prev) => ({
+      ...prev,
+      [turno]: [...(prev[turno] || []), { hora: novoProcedimento.hora, descricao: novoProcedimento.descricao }],
+    }));
+    setNovoProcedimento({ hora: "", descricao: "" });
+    setMensagem("Procedimento adicionado.");
+    criarLog("Novo procedimento", `Procedimento ${novoProcedimento.hora} adicionado ao turno ${turno}.`);
   }
 
-  function removerAnexo(nome) {
-    if (!pode.upload) return setMensagem(`${perfilActivo}: sem permissão para remover anexos.`);
-    setFicheiros((prev) => prev.filter((f) => f.nome !== nome));
-    setAnexos((prev) => prev.filter((a) => a !== nome));
+  function adicionarChecklist() {
+    if (!pode.configurar) return setMensagem(`${perfilActivo}: sem permissão para adicionar checklist.`);
+    if (!novaChecklist.categoria.trim() || !novaChecklist.tarefa.trim() || !novaChecklist.horario.trim()) return setMensagem("Preencha categoria, actividade e horário da checklist.");
+    setChecklist((prev) => [
+      ...prev,
+      {
+        id: `custom-${turno}-${Date.now()}`,
+        categoria: novaChecklist.categoria,
+        tarefa: novaChecklist.tarefa,
+        horario: novaChecklist.horario,
+        feito: false,
+        observacao: "",
+      },
+    ]);
+    setNovaChecklist({ categoria: "", tarefa: "", horario: "" });
+    setApiStatus("POST /api/checklist OK");
+    setMensagem(`Preview produção: nova checklist gravada no SQL Server para o turno ${turno}.`);
+    criarLog("Nova checklist", `Checklist adicionada: ${novaChecklist.categoria} - ${novaChecklist.tarefa}.`);
   }
 
   function submeterRelatorio() {
-    if (!pode.upload) return setMensagem(`${perfilActivo}: sem permissão para submeter.`);
-    if (pendentes.length && !justificativa.trim()) return setMensagem("Existem pendências. Preencha a justificação antes de submeter.");
-    const novo = { ...relatorioAtual, estado: "Submetido" };
+    if (!pode.checklist) return setMensagem(`${perfilActivo}: sem permissão para submeter relatório.`);
     setEstadoRelatorio("Submetido");
-    setRelatorios((prev) => prev.some((r) => r.id === novo.id) ? prev.map((r) => r.id === novo.id ? novo : r) : [novo, ...prev]);
-    setMensagem("Relatório submetido ao supervisor Idricio Langa.");
+    setApiStatus("POST /api/relatorios/submeter OK");
+    setMensagem("Preview produção: relatório submetido e gravado no SQL Server via API C#.");
+    criarLog("Submissão de relatório", `Relatório do turno ${turno} submetido com ${ficheirosRelatorio.length} evidência(s).`);
   }
 
   function validarRelatorio() {
-    if (!pode.validar) return setMensagem(`${perfilActivo}: sem permissão para validar.`);
+    if (!pode.validar) return setMensagem(`${perfilActivo}: sem permissão para validar relatório.`);
     setEstadoRelatorio("Validado");
-    setRelatorios((prev) => prev.map((r) => r.id === relatorioAtual.id ? { ...relatorioAtual, estado: "Validado" } : r));
     setMensagem("Relatório validado pelo supervisor.");
+    criarLog("Validação de relatório", `Relatório do turno ${turno} validado por ${utilizadorLogado}.`);
   }
 
-  function rejeitarRelatorio() {
-    if (!pode.validar) return setMensagem(`${perfilActivo}: sem permissão para rejeitar.`);
-    setEstadoRelatorio("Rejeitado");
-    setRelatorios((prev) => prev.map((r) => r.id === relatorioAtual.id ? { ...relatorioAtual, estado: "Rejeitado" } : r));
-    setMensagem("Relatório rejeitado.");
+  function carregarFicheiros(e) {
+    if (!pode.checklist) return setMensagem(`${perfilActivo}: sem permissão para anexar evidências.`);
+    const lista = Array.from(e.target.files || []);
+    if (lista.length === 0) return;
+    const novos = lista.map((file, index) => ({
+      id: `${Date.now()}-${index}-${file.name}`,
+      nome: file.name,
+      tamanho: file.size,
+      tipo: file.type || "Ficheiro",
+    }));
+    setFicheirosRelatorio((prev) => [...prev, ...novos]);
+    setApiStatus("POST /api/upload OK");
+    setMensagem(`${novos.length} evidência(s) anexada(s) ao relatório.`);
+    criarLog("Upload evidência", `${novos.length} ficheiro(s) anexado(s) ao relatório do turno ${turno}.`);
+    e.target.value = "";
   }
 
-  function abrirNovoIncidente() {
-    if (!pode.incidentes) return setMensagem(`${perfilActivo}: sem permissão para criar incidente.`);
-    setIncidenteEditarId(null);
-    setFormIncidente({ referencia: "", canal: "ATM/POS", hora: "", descricao: "", estado: "Em acompanhamento" });
-    setModalIncidente(true);
+  function removerFicheiro(id) {
+    setFicheirosRelatorio((prev) => prev.filter((f) => f.id !== id));
+    setMensagem("Evidência removida da lista de anexos.");
+    criarLog("Remoção de evidência", `Foi removida uma evidência do relatório do turno ${turno}.`);
   }
 
-  function editarIncidente(inc) {
-    if (!pode.editarIncidente) return setMensagem(`${perfilActivo}: sem permissão para editar incidente.`);
-    setIncidenteEditarId(inc.id);
-    setFormIncidente({ referencia: inc.id, canal: inc.canal, hora: inc.hora, descricao: inc.descricao, estado: inc.estado });
-    setModalIncidente(true);
+  function carregarEmailAutorizacaoDC(e) {
+    const ficheiro = e.target.files && e.target.files[0];
+    if (!ficheiro) return;
+    setNovoAcessoDC((prev) => ({ ...prev, emailAutorizacao: ficheiro.name }));
+    setMensagem(`Email de autorização anexado: ${ficheiro.name}`);
+    criarLog("Upload email autorização", `Email de autorização anexado ao pedido de acesso ao Data Center: ${ficheiro.name}`);
+    e.target.value = "";
   }
 
-  function gravarIncidente() {
-    if (!pode.incidentes) return setMensagem(`${perfilActivo}: sem permissão para gravar incidente.`);
-    if (!formIncidente.referencia || !formIncidente.hora || !formIncidente.descricao) return setMensagem("Preencha referência, hora e descrição do incidente.");
-    const inc = { id: formIncidente.referencia, canal: formIncidente.canal, hora: formIncidente.hora, descricao: formIncidente.descricao, estado: formIncidente.estado };
-    if (incidenteEditarId) {
-      setIncidentes((prev) => prev.map((i) => i.id === incidenteEditarId ? inc : i));
-      setMensagem(`Incidente ${inc.id} actualizado.`);
-    } else {
-      setIncidentes((prev) => [inc, ...prev]);
-      setMensagem(`Incidente ${inc.id} registado.`);
+  function cadastrarUtilizador() {
+    const nome = prompt("Nome do novo utilizador:");
+    if (!nome) return;
+    const perfil = prompt("Perfil: Operador, Supervisor, Auditoria ou Administrador", "Operador") || "Operador";
+    setExtraUsers((prev) => [...prev, nome]);
+    setPerfis((prev) => ({ ...prev, [nome]: perfil }));
+    setMensagem(`${nome} cadastrado como ${perfil}.`);
+    criarLog("Cadastro utilizador", `${nome} cadastrado como ${perfil}.`);
+  }
+
+  function adicionarIncidente() {
+    if (!pode.incidentes) return;
+    const id = prompt("Referência do incidente/WO:", "INC000000000");
+    if (!id) return;
+    const descricao = prompt("Descrição do incidente:", "Descrever ocorrência") || "Sem descrição";
+    setIncidentes((prev) => [{ id, canal: "Operacional", descricao, estado: "Em acompanhamento" }, ...prev]);
+    setApiStatus("POST /api/incidentes OK");
+    setMensagem("Preview produção: incidente gravado no SQL Server via API C#.");
+    criarLog("Registo de incidente", `Incidente ${id} registado: ${descricao}.`);
+  }
+
+  function registarEntradaDataCenter() {
+    if (!pode.checklist) return setMensagem(`${perfilActivo}: sem permissão para registar acesso ao Data Center.`);
+    if (!novoAcessoDC.visitante.trim() || !novoAcessoDC.motivo.trim() || !novoAcessoDC.autorizadoPor.trim() || !novoAcessoDC.acompanhadoPor.trim()) {
+      return setMensagem("Preencha visitante, motivo, autorizado por e acompanhado por.");
     }
-    setModalIncidente(false);
+    const registo = {
+      id: `DC-${String(acessosDataCenter.length + 1).padStart(3, "0")}`,
+      visitante: novoAcessoDC.visitante,
+      empresa: novoAcessoDC.empresa || "N/A",
+      motivo: novoAcessoDC.motivo,
+      autorizadoPor: novoAcessoDC.autorizadoPor,
+      acompanhadoPor: novoAcessoDC.acompanhadoPor,
+      emailAutorizacao: novoAcessoDC.emailAutorizacao || "Sem email anexado",
+      entrada: novoAcessoDC.entrada || new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }),
+      saida: novoAcessoDC.saida,
+      estado: novoAcessoDC.saida ? "Concluído" : "Dentro do Data Center",
+    };
+    setAcessosDataCenter((prev) => [registo, ...prev]);
+    setNovoAcessoDC({ visitante: "", empresa: "", motivo: "", autorizadoPor: "", acompanhadoPor: "", emailAutorizacao: "", entrada: "", saida: "" });
+    setApiStatus("POST /api/datacenter/acessos OK");
+    setMensagem("Acesso ao Data Center registado com sucesso.");
+    criarLog("Registo Data Center", `Acesso ${registo.id} registado para ${registo.visitante}. Autorizado por ${registo.autorizadoPor}. Email: ${registo.emailAutorizacao}.`);
   }
 
-  function confirmarEliminarIncidente() {
-    if (!pode.eliminar) return setMensagem(`${perfilActivo}: sem permissão para eliminar incidente.`);
-    if (!incidenteEliminar) return;
-    setIncidentes((prev) => prev.filter((i) => i.id !== incidenteEliminar.id));
-    setMensagem(`Incidente ${incidenteEliminar.id} eliminado.`);
-    setIncidenteEliminar(null);
+  function registarSaidaDataCenter(id) {
+    const horaSaida = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+    setAcessosDataCenter((prev) => prev.map((item) => item.id === id ? { ...item, saida: horaSaida, estado: "Concluído" } : item));
+    setMensagem("Saída do Data Center registada.");
+    criarLog("Saída Data Center", `Foi registada a saída do acesso ${id}.`);
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-pink-50 to-slate-200 p-6 text-slate-900">
       <div className="mx-auto max-w-7xl space-y-6">
-        <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden flex flex-col gap-4 rounded-[32px] p-8 text-white shadow-2xl md:flex-row md:items-center md:justify-between" style={{ background: "linear-gradient(135deg,#A10D4F,#D81B60,#7B1FA2)" }}>
-          <div>
-            <p className="text-sm font-medium text-white">Departamento de Sistemas • Exploração</p>
-            <h1 className="mt-1 text-4xl font-black tracking-tight">Gestão de Turnos Operacionais</h1>
-            <p className="mt-2 text-pink-100">Monitorização • Checklist • Incidentes • Auditoria • Relatórios</p>
+        <header className="relative overflow-hidden rounded-[36px] p-8 text-white shadow-2xl" style={{ background: `linear-gradient(135deg,${COR_BIM_ESCURO},${COR_BIM},#D81B60,#7B1FA2)` }}>
+          <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10" />
+          <div className="absolute -bottom-20 right-24 h-56 w-56 rounded-full bg-white/10" />
+          <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-pink-100">Departamento de Sistemas • Exploração</p>
+              <h1 className="mt-2 text-4xl font-black tracking-tight md:text-5xl">Gestão de Turnos Operacionais</h1>
+              <p className="mt-3 max-w-3xl text-pink-100">Turnos, procedimentos, checklists, incidentes, evidências, Data Center e validação do supervisor.</p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <span className="rounded-full bg-white/20 px-4 py-2 text-xs font-bold">Frontend React</span>
+                <span className="rounded-full bg-white/20 px-4 py-2 text-xs font-bold">API C# ASP.NET Core</span>
+                <span className="rounded-full bg-white/20 px-4 py-2 text-xs font-bold">SQL Server</span>
+              </div>
+            </div>
+            <div className="rounded-3xl bg-white/15 p-5 text-right">
+              <p className="text-sm text-pink-100">Estado Produção</p>
+              <h2 className="text-2xl font-black">{apiStatus}</h2>
+              <p className="text-sm text-pink-100">Dados gravados no SQL Server</p>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <Button onClick={() => setRelatorioAberto(relatorioAtual)} className="bg-white text-slate-900">🖨️ Imprimir</Button>
-            <Button onClick={() => setRelatorioAberto(relatorioAtual)} className="text-white" style={{ backgroundColor: COR_BIM_2 }}>👁️ Ver Relatório</Button>
+        </header>
+
+        {mensagem && (
+          <div className="rounded-2xl border border-pink-300 bg-pink-50 p-4 text-sm font-bold shadow" style={{ color: COR_BIM }}>
+            {mensagem}
           </div>
-        </motion.div>
+        )}
 
-        {mensagem && <div className="rounded-2xl border border-[#E91E63] bg-[#FCE4EC] p-4 text-sm font-semibold" style={{ color: COR_BIM }}>{mensagem}</div>}
+        <nav className="mb-2 flex flex-wrap gap-3">
+          {["Dashboard", "Data Center", "Histórico", "Auditoria", "Relatórios", "Administração"].map((pagina) => (
+            <button
+              key={pagina}
+              type="button"
+              onClick={() => setPaginaActiva(pagina)}
+              className={`rounded-full px-4 py-2 text-sm font-bold shadow ${paginaActiva === pagina ? "bg-pink-700 text-white" : "bg-white text-slate-700"}`}
+            >
+              {pagina}
+            </button>
+          ))}
+        </nav>
 
-        <Card>
-          <CardContent>
+        {paginaActiva === "Dashboard" && (
+          <Card className="border-pink-200 bg-gradient-to-r from-pink-50 to-white">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-2xl font-black">🔐 Atribuição de Permissões</h2>
-                <p className="text-sm text-slate-500">Entre como administrador para cadastrar utilizadores e atribuir perfis.</p>
+                <h2 className="text-2xl font-black">🔌 Dashboard Operacional</h2>
+                <p className="text-sm text-slate-500">Em produção os botões chamam a API C# e gravam tudo no SQL Server.</p>
               </div>
-              <div className="grid w-full gap-3 md:w-[920px] md:grid-cols-4">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">Entrar como</label>
-                  <select value={utilizadorLogado} onChange={(e) => entrarComo(e.target.value)} className="h-12 w-full rounded-2xl border bg-white px-4">
-                    {utilizadoresSistema.map((u) => <option key={u}>{u}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">Utilizador a alterar</label>
-                  <select value={utilizadorAAlterar} onChange={(e) => seleccionarUtilizadorParaAlterar(e.target.value)} className="h-12 w-full rounded-2xl border bg-white px-4">
-                    {utilizadoresSistema.map((u) => <option key={u}>{u}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">Perfil atribuído</label>
-                  <select value={novoPerfilUtilizador} disabled={!pode.admin} onChange={(e) => setNovoPerfilUtilizador(e.target.value)} className="h-12 w-full rounded-2xl border bg-white px-4 disabled:bg-slate-100 disabled:text-slate-400">
-                    <option>Operador</option><option>Supervisor</option><option>Auditoria</option><option>Administrador</option>
-                  </select>
-                </div>
-                <div className="flex items-end"><Button onClick={gravarPermissao} disabled={!pode.admin} className="w-full text-white" style={{ backgroundColor: COR_BIM }}>Gravar Permissão</Button></div>
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="rounded-2xl bg-white p-4 shadow"><p className="text-xs text-slate-500">ATMs Monitoradas</p><h3 className="text-3xl font-black text-emerald-700">124</h3></div>
+                <div className="rounded-2xl bg-white p-4 shadow"><p className="text-xs text-slate-500">Time-outs</p><h3 className="text-3xl font-black text-red-600">12</h3></div>
+                <div className="rounded-2xl bg-white p-4 shadow"><p className="text-xs text-slate-500">Incidentes</p><h3 className="text-3xl font-black text-amber-600">{incidentes.length}</h3></div>
+                <div className="rounded-2xl bg-white p-4 shadow"><p className="text-xs text-slate-500">Estado API</p><h3 className="text-sm font-black text-blue-700">ONLINE</h3></div>
               </div>
             </div>
-            <div className="mt-4 rounded-2xl p-4 text-sm text-white" style={{ backgroundColor: perfilCor[perfilActivo] }}><b>{perfilActivo}:</b> {pode.descricao}</div>
-            <div className="mt-4 grid gap-3 md:grid-cols-6">
-              {[
-                ["Checklist", pode.checklist], ["Upload", pode.upload], ["Incidentes", pode.incidentes], ["Validação", pode.validar], ["Eliminar", pode.eliminar], ["Admin", pode.admin]
-              ].map(([nome, ok]) => <span key={nome} className={`rounded-full px-3 py-2 text-center text-xs font-bold ${ok ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{nome}</span>)}
+          </Card>
+        )}
+
+        {paginaActiva === "Data Center" && (
+          <Card className="border-slate-300 bg-gradient-to-r from-slate-50 to-white">
+            <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-2xl font-black">🏢 Gestão de Acesso ao Data Center</h2>
+                <p className="text-sm text-slate-500">Registo de entrada, autorização, upload do email, acompanhamento, motivo e saída.</p>
+              </div>
+              <span className="rounded-full bg-slate-900 px-4 py-2 text-xs font-bold text-white">Controlo DC</span>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent>
-            <div className="mb-4 flex items-center justify-between">
-              <div><h2 className="text-2xl font-black">👤 Cadastro de Utilizadores</h2><p className="text-sm text-slate-500">Cadastrar novos operadores, supervisores, auditores ou administradores.</p></div>
-              <span className="rounded-full bg-pink-100 px-3 py-2 text-xs font-bold" style={{ color: COR_BIM }}>Admin Only</span>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                <h3 className="mb-3 text-xl font-black">➕ Novo Acesso</h3>
+                <input value={novoAcessoDC.visitante} onChange={(e) => setNovoAcessoDC({ ...novoAcessoDC, visitante: e.target.value })} placeholder="Nome da pessoa / visitante" className="mb-3 h-12 w-full rounded-2xl border px-4" />
+                <input value={novoAcessoDC.empresa} onChange={(e) => setNovoAcessoDC({ ...novoAcessoDC, empresa: e.target.value })} placeholder="Empresa / Área" className="mb-3 h-12 w-full rounded-2xl border px-4" />
+                <textarea value={novoAcessoDC.motivo} onChange={(e) => setNovoAcessoDC({ ...novoAcessoDC, motivo: e.target.value })} placeholder="Motivo do acesso" className="mb-3 h-24 w-full rounded-2xl border p-4" />
+                <input value={novoAcessoDC.autorizadoPor} onChange={(e) => setNovoAcessoDC({ ...novoAcessoDC, autorizadoPor: e.target.value })} placeholder="Autorizado por" className="mb-3 h-12 w-full rounded-2xl border px-4" />
+
+                <div className="mb-3 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50 p-4">
+                  <p className="mb-2 text-sm font-bold text-blue-800">📧 Upload do email de autorização</p>
+                  <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl bg-white p-4 text-center shadow-sm hover:bg-blue-50">
+                    <span className="text-2xl">📤</span>
+                    <b className="text-sm">Carregar email de autorização</b>
+                    <span className="text-xs text-slate-500">PDF, MSG, EML, imagem ou print do email</span>
+                    <input type="file" onChange={carregarEmailAutorizacaoDC} className="hidden" accept=".pdf,.msg,.eml,.png,.jpg,.jpeg,.doc,.docx" />
+                  </label>
+                  {novoAcessoDC.emailAutorizacao && <div className="mt-2 rounded-xl bg-white p-2 text-xs font-bold text-blue-700">✓ {novoAcessoDC.emailAutorizacao}</div>}
+                </div>
+
+                <input value={novoAcessoDC.acompanhadoPor} onChange={(e) => setNovoAcessoDC({ ...novoAcessoDC, acompanhadoPor: e.target.value })} placeholder="Acompanhado por" className="mb-3 h-12 w-full rounded-2xl border px-4" />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input value={novoAcessoDC.entrada} onChange={(e) => setNovoAcessoDC({ ...novoAcessoDC, entrada: e.target.value })} placeholder="Hora entrada" className="h-12 rounded-2xl border px-4" />
+                  <input value={novoAcessoDC.saida} onChange={(e) => setNovoAcessoDC({ ...novoAcessoDC, saida: e.target.value })} placeholder="Hora saída" className="h-12 rounded-2xl border px-4" />
+                </div>
+                <Button onClick={registarEntradaDataCenter} className="mt-4 w-full bg-slate-900 text-white">Registar Acesso</Button>
+              </div>
+
+              <div className="rounded-3xl border bg-white p-5 shadow-sm lg:col-span-2">
+                <h3 className="mb-3 text-xl font-black">📋 Acessos Registados</h3>
+                <div className="overflow-x-auto rounded-2xl border">
+                  <table className="w-full min-w-[980px] text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="p-3">Ref.</th>
+                        <th className="p-3">Visitante</th>
+                        <th className="p-3">Motivo</th>
+                        <th className="p-3">Autorizado</th>
+                        <th className="p-3">Email</th>
+                        <th className="p-3">Acompanhado</th>
+                        <th className="p-3">Entrada</th>
+                        <th className="p-3">Saída</th>
+                        <th className="p-3">Estado</th>
+                        <th className="p-3">Acção</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {acessosDataCenter.map((a) => (
+                        <tr key={a.id} className="border-t">
+                          <td className="p-3 font-bold">{a.id}</td>
+                          <td className="p-3"><b>{a.visitante}</b><br /><span className="text-xs text-slate-500">{a.empresa}</span></td>
+                          <td className="p-3">{a.motivo}</td>
+                          <td className="p-3">{a.autorizadoPor}</td>
+                          <td className="p-3"><span className="text-xs font-semibold text-blue-700">{a.emailAutorizacao || "Sem email"}</span></td>
+                          <td className="p-3">{a.acompanhadoPor}</td>
+                          <td className="p-3">{a.entrada}</td>
+                          <td className="p-3">{a.saida || "—"}</td>
+                          <td className="p-3"><span className={`rounded-full px-3 py-1 text-xs font-bold ${a.estado === "Concluído" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{a.estado}</span></td>
+                          <td className="p-3">{!a.saida && <button type="button" onClick={() => registarSaidaDataCenter(a.id)} className="rounded-xl bg-pink-700 px-3 py-2 text-xs font-bold text-white">Registar Saída</button>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-5">
-              <input value={novoUtilizador.nome} onChange={(e) => setNovoUtilizador({ ...novoUtilizador, nome: e.target.value })} disabled={!pode.admin} placeholder="Nome" className="h-12 rounded-2xl border px-4 disabled:bg-slate-100" />
-              <input value={novoUtilizador.contacto} onChange={(e) => setNovoUtilizador({ ...novoUtilizador, contacto: e.target.value })} disabled={!pode.admin} placeholder="Contacto" className="h-12 rounded-2xl border px-4 disabled:bg-slate-100" />
-              <input value={novoUtilizador.email} onChange={(e) => setNovoUtilizador({ ...novoUtilizador, email: e.target.value })} disabled={!pode.admin} placeholder="Email" className="h-12 rounded-2xl border px-4 disabled:bg-slate-100" />
-              <select value={novoUtilizador.perfil} onChange={(e) => setNovoUtilizador({ ...novoUtilizador, perfil: e.target.value })} disabled={!pode.admin} className="h-12 rounded-2xl border px-4 disabled:bg-slate-100">
-                <option>Operador</option><option>Supervisor</option><option>Auditoria</option><option>Administrador</option>
-              </select>
-              <Button onClick={cadastrarUtilizador} disabled={!pode.admin} className="text-white" style={{ backgroundColor: COR_BIM }}>Cadastrar</Button>
+          </Card>
+        )}
+
+        {paginaActiva === "Histórico" && (
+          <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-white">
+            <h2 className="text-2xl font-black">📚 Histórico de Relatórios</h2>
+            <p className="mt-1 text-sm text-slate-500">Pesquisa por data, turno, operador e estado.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <input className="rounded-2xl border px-4 py-3" placeholder="Data" />
+              <select className="rounded-2xl border px-4 py-3"><option>Todos os turnos</option><option>Manhã</option><option>Tarde</option><option>Noite</option></select>
+              <select className="rounded-2xl border px-4 py-3"><option>Todos estados</option><option>Rascunho</option><option>Submetido</option><option>Validado</option></select>
+              <Button className="bg-blue-700 text-white" onClick={() => setMensagem("Preview: pesquisa GET /api/relatorios executada.")}>Pesquisar</Button>
             </div>
-          </CardContent>
-        </Card>
+            <div className="mt-4 rounded-2xl border bg-white p-4 text-sm"><b>RT-2026-0509-001</b> • Noite • PCOMB • Submetido • Operadores: {operador1} / {operador2}</div>
+          </Card>
+        )}
 
-        <Card><CardContent><div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><h2 className="text-xl font-bold">Operadores do Turno</h2><p className="text-sm text-slate-500">Seleccione os operadores que estiveram a trabalhar neste turno.</p></div><div className="grid w-full gap-4 md:w-[720px] md:grid-cols-2"><div><label className="mb-2 block text-sm font-semibold">Operador 1</label><select disabled={!pode.checklist} value={operador1} onChange={(e) => setOperador1(e.target.value)} className="h-12 w-full rounded-2xl border bg-white px-4 disabled:bg-slate-100">{operadores.map((op) => <option key={op}>{op}</option>)}</select></div><div><label className="mb-2 block text-sm font-semibold">Operador 2</label><select disabled={!pode.checklist} value={operador2} onChange={(e) => setOperador2(e.target.value)} className="h-12 w-full rounded-2xl border bg-white px-4 disabled:bg-slate-100"><option value="">Sem segundo operador</option>{operadores.map((op) => <option key={op}>{op}</option>)}</select></div><div className="rounded-2xl bg-[#FCE4EC] p-3 text-sm font-semibold md:col-span-2" style={{ color: COR_BIM }}>Operadores no turno: {operadoresTurno || "—"}</div></div></div></CardContent></Card>
+        {paginaActiva === "Auditoria" && (
+          <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-white">
+            <h2 className="text-2xl font-black">🛡️ Auditoria / Logs</h2>
+            <p className="mt-1 text-sm text-slate-500">Consulta de logs, alterações, uploads, checklists, validações, acessos ao Data Center e incidentes.</p>
+            <div className="mt-4 overflow-x-auto rounded-2xl border bg-white">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr><th className="p-3">Data/Hora</th><th className="p-3">Utilizador</th><th className="p-3">Perfil</th><th className="p-3">Acção</th><th className="p-3">Detalhe</th></tr>
+                </thead>
+                <tbody>
+                  {logs.map((log) => (
+                    <tr key={log.id} className="border-t">
+                      <td className="p-3">{log.dataHora}</td>
+                      <td className="p-3 font-bold">{log.utilizador}</td>
+                      <td className="p-3">{log.perfil}</td>
+                      <td className="p-3"><span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-700">{log.accao}</span></td>
+                      <td className="p-3">{log.detalhe}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
-        <Card><CardContent><div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><h2 className="text-xl font-bold">Turno Operacional</h2><p className="text-sm text-slate-500">Seleccione o turno operacional que está a ser reportado.</p></div><div className="grid w-full gap-4 md:w-[720px] md:grid-cols-3">{turnos.map((t) => { const activo = turno === t.nome; return <button key={t.nome} onClick={() => mudarTurno(t.nome)} className={`rounded-2xl border p-4 text-left ${activo ? "text-white shadow-lg" : "bg-white"}`} style={{ backgroundColor: activo ? COR_BIM : "white", borderColor: activo ? COR_BIM : "#E2E8F0" }}><div className="flex items-center gap-3"><span className="text-2xl">{t.icon}</span><div><h3 className="font-bold">{t.nome}</h3><p className={`text-sm ${activo ? "text-pink-100" : "text-slate-500"}`}>{horariosTurno[t.nome]}</p></div></div></button>; })}</div></div></CardContent></Card>
+        {paginaActiva === "Relatórios" && (
+          <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50 to-white">
+            <h2 className="text-2xl font-black">📄 Exportação de Relatórios</h2>
+            <p className="mt-1 text-sm text-slate-500">Exportar PDF, Excel e imprimir relatório do turno.</p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button className="bg-pink-700 text-white" onClick={() => setMensagem("Preview: PDF gerado a partir do relatório do turno.")}>Exportar PDF</Button>
+              <Button className="bg-emerald-700 text-white" onClick={() => setMensagem("Preview: Excel gerado a partir do relatório do turno.")}>Exportar Excel</Button>
+              <Button className="bg-slate-800 text-white" onClick={() => setMensagem("Preview: impressão enviada.")}>Imprimir</Button>
+            </div>
+          </Card>
+        )}
 
-        <div className="grid gap-5 md:grid-cols-4">
-          <Card><CardContent><div className="mb-2 text-3xl">🕒</div><p className="text-sm text-slate-500">Turno Actual</p><h2 className="text-2xl font-bold">{turno}</h2><p className="text-sm text-slate-500">{horario}</p></CardContent></Card>
-          <Card><CardContent><div className="mb-2 text-3xl">✅</div><p className="text-sm text-slate-500">Checklist</p><h2 className="text-2xl font-bold">{progresso}%</h2><p className="text-sm text-slate-500">{feitas}/{tarefas.length} concluídas</p></CardContent></Card>
-          <Card><CardContent><div className="mb-2 text-3xl">⚠️</div><p className="text-sm text-slate-500">Pendências</p><h2 className="text-2xl font-bold">{pendentes.length}</h2><p className="text-sm text-slate-500">Necessitam justificação</p></CardContent></Card>
-          <Card><CardContent><div className="mb-2 text-3xl">📊</div><p className="text-sm text-slate-500">Estado</p><h2 className="text-2xl font-bold">{estadoRelatorio}</h2><p className="text-sm text-slate-500">Supervisor: Idricio Langa</p></CardContent></Card>
+        {paginaActiva === "Administração" && pode.admin && (
+          <Card className="border-pink-200 bg-gradient-to-r from-pink-50 to-white">
+            <h2 className="text-2xl font-black">⚙️ Administração do Sistema</h2>
+            <p className="mt-1 text-sm text-slate-500">Gestão de utilizadores, perfis, permissões, procedimentos e checklists base.</p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button onClick={cadastrarUtilizador} className="bg-pink-700 text-white">Cadastrar Utilizador</Button>
+              <Button onClick={() => setMensagem("Preview: abrir gestão de perfis.")} className="bg-white text-slate-900">Gerir Perfis</Button>
+              <Button onClick={() => setMensagem("Preview: abrir parâmetros do sistema.")} className="bg-white text-slate-900">Parâmetros</Button>
+            </div>
+          </Card>
+        )}
+
+        {paginaActiva === "Administração" && !pode.admin && (
+          <Card className="border-amber-200 bg-amber-50">
+            <h2 className="text-xl font-black">Acesso restrito</h2>
+            <p className="text-sm text-slate-600">Apenas Administrador pode aceder à Administração.</p>
+          </Card>
+        )}
+
+        <div className="grid gap-5 md:grid-cols-5">
+          <Card className="bg-gradient-to-br from-[#A10D4F] to-[#6D0035] text-white"><p className="text-sm opacity-80">Utilizador</p><h3 className="mt-1 text-2xl font-black">{utilizadorLogado}</h3><p className="text-sm opacity-80">{perfilActivo}</p></Card>
+          <Card className="bg-gradient-to-br from-white to-pink-50"><p className="text-sm font-semibold text-slate-500">Turno</p><h3 className="mt-1 text-3xl font-black" style={{ color: COR_BIM }}>{turno}</h3><p className="text-sm text-slate-500">{horariosTurno[turno]}</p></Card>
+          <Card className="bg-gradient-to-br from-white to-pink-50"><p className="text-sm font-semibold text-slate-500">Processo Noite</p><h3 className="mt-1 text-2xl font-black" style={{ color: COR_BIM }}>{turno === "Noite" ? processoNoite : "N/A"}</h3><p className="text-sm text-slate-500">IDW • PCOMB • ITM • SIMO</p></Card>
+          <Card className="bg-gradient-to-br from-white to-emerald-50"><p className="text-sm font-semibold text-slate-500">Checklist</p><h3 className="mt-1 text-3xl font-black text-emerald-700">{progressoChecklist}%</h3><p className="text-sm text-slate-500">Actividades concluídas</p></Card>
+          <Card className="bg-gradient-to-br from-white to-blue-50"><p className="text-sm font-semibold text-slate-500">Procedimentos</p><h3 className="mt-1 text-3xl font-black text-blue-700">{progressoProcedimentos}%</h3><p className="text-sm text-slate-500">Execução do turno</p></Card>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2"><CardContent><div className="mb-5 flex items-center justify-between"><div><h2 className="text-xl font-bold">Checklist de Validação do Turno da {turno}</h2><p className="text-sm text-slate-500">Marque cada actividade da checklist específica do turno seleccionado.</p></div><span className={`rounded-full px-4 py-2 text-sm font-semibold ${progresso === 100 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{progresso === 100 ? "Pronto para validar" : "Com pendências"}</span></div><div className="overflow-x-auto rounded-2xl border bg-white"><table className="w-full min-w-[980px] text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-4">Feito</th><th className="p-4">Categoria</th><th className="p-4">Actividade</th><th className="p-4">Horário</th><th className="p-4">Observação</th></tr></thead><tbody>{tarefas.map((item) => <tr key={item.id} className="border-t"><td className="p-4"><input type="checkbox" checked={item.feito} disabled={!pode.checklist} onChange={() => toggleTarefa(item.id)} className="h-5 w-5" style={{ accentColor: COR_BIM }} /></td><td className="p-4 font-medium">{item.categoria}</td><td className="p-4">{item.tarefa}</td><td className="p-4"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{item.horario}</span></td><td className="p-4"><input value={item.observacao} disabled={!pode.checklist} onChange={(e) => actualizarObservacao(item.id, e.target.value)} className="w-full rounded-xl border px-3 py-2 disabled:bg-slate-100" placeholder="OK / pendente" /></td></tr>)}</tbody></table></div></CardContent></Card>
+        <Card>
+          <div className="grid gap-4 md:grid-cols-3 md:items-end">
+            <div className="md:col-span-2"><h2 className="text-2xl font-black">👤 Identificação do Utilizador</h2><p className="text-sm text-slate-500">No sistema real será login com username e senha. O perfil vem da tabela Usuarios/Perfis.</p></div>
+            <div><label className="mb-2 block text-sm font-semibold">Meu nome / Login simulado</label><select value={utilizadorLogado} onChange={(e) => entrarComo(e.target.value)} className="h-12 w-full rounded-2xl border bg-white px-4">{utilizadores.map((nome) => <option key={nome}>{nome}</option>)}</select></div>
+          </div>
+          <div className="mt-4 rounded-2xl p-4 text-sm font-bold text-white" style={{ backgroundColor: COR_BIM }}>Perfil activo: {perfilActivo}</div>
+        </Card>
 
-          <Card><CardContent className="space-y-5"><div className="border-b pb-4"><p className="text-xs font-semibold uppercase text-slate-500">Departamento de Sistemas • Exploração</p><h2 className="text-2xl font-bold">Relatório do Turno da {turno}</h2></div><div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm"><div className="col-span-2 flex justify-between"><span>Operadores</span><b>{operadoresTurno}</b></div><div className="flex justify-between"><span>Turno</span><b>{turno}</b></div><div className="flex justify-between"><span>Estado</span><b>{estadoRelatorio}</b></div><div className="flex justify-between"><span>Supervisor</span><b>Idricio Langa</b></div><div className="flex justify-between"><span>Checklist</span><b>{progresso}%</b></div></div><textarea disabled={!pode.checklist} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Observações do turno" className="h-24 w-full rounded-2xl border p-3 disabled:bg-slate-100" /><textarea disabled={!pode.checklist} value={justificativa} onChange={(e) => setJustificativa(e.target.value)} placeholder="Justificação de pendências" className="h-20 w-full rounded-2xl border p-3 disabled:bg-slate-100" /><div className="rounded-3xl border-2 border-dashed p-5" style={{ backgroundColor: COR_CLARO, borderColor: COR_BIM_2 }}><h3 className="text-lg font-bold">📤 Upload do Relatório</h3><label className="mt-3 flex cursor-pointer flex-col items-center rounded-2xl border bg-white p-5 text-center"><span className="text-3xl">📎</span><b>Clique aqui para carregar</b><input type="file" multiple disabled={!pode.upload} onChange={carregarAnexos} className="hidden" /></label>{ficheiros.map((f) => <div key={f.nome} className="mt-2 flex justify-between rounded-xl bg-white p-2"><span>📎 {f.nome}</span><button disabled={!pode.upload} onClick={() => removerAnexo(f.nome)} className="text-red-600 disabled:text-slate-400">Remover</button></div>)}</div><div className="rounded-2xl border bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Actividades executadas</span><b>{feitas}</b></div><div className="flex justify-between"><span>Pendências</span><b>{pendentes.length}</b></div><div className="flex justify-between"><span>Incidentes</span><b>{incidentes.length}</b></div><div className="flex justify-between"><span>Anexos</span><b>{anexos.length}</b></div></div><div className="grid grid-cols-2 gap-3"><Button onClick={() => setMensagem(`${perfilActivo}: rascunho guardado.`)} disabled={!pode.upload} className="bg-white text-slate-900">Guardar</Button><Button onClick={submeterRelatorio} disabled={!pode.upload} className="text-white" style={{ backgroundColor: COR_BIM }}>Submeter</Button></div><Button onClick={() => setRelatorioAberto(relatorioAtual)} className="w-full text-white" style={{ backgroundColor: COR_BIM }}>👁️ Ver Relatório Final</Button></CardContent></Card>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <h2 className="text-2xl font-black">👥 Operadores do Turno</h2>
+            <p className="mb-4 text-sm text-slate-500">Seleccione os operadores que estiveram neste turno.</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <select disabled={perfilActivo === "Auditoria"} value={operador1} onChange={(e) => setOperador1(e.target.value)} className="h-12 rounded-2xl border bg-white px-4 disabled:bg-slate-100">{operadores.map((nome) => <option key={nome}>{nome}</option>)}</select>
+              <select disabled={perfilActivo === "Auditoria"} value={operador2} onChange={(e) => setOperador2(e.target.value)} className="h-12 rounded-2xl border bg-white px-4 disabled:bg-slate-100"><option value="">Sem segundo operador</option>{operadores.map((nome) => <option key={nome}>{nome}</option>)}</select>
+            </div>
+            <div className="mt-4 rounded-2xl p-3 text-sm font-semibold" style={{ color: COR_BIM, backgroundColor: COR_CLARO }}>Operadores: {[operador1, operador2].filter(Boolean).join(" / ")}</div>
+          </Card>
+
+          <Card>
+            <h2 className="text-2xl font-black">🕒 Turno Operacional</h2>
+            <p className="mb-4 text-sm text-slate-500">Ao seleccionar Noite, escolha também o processo principal.</p>
+            <div className="grid gap-4 md:grid-cols-3">
+              {turnos.map((nome) => {
+                const activo = turno === nome;
+                return <button key={nome} type="button" onClick={() => mudarTurno(nome)} className={`rounded-3xl border p-5 text-left transition ${activo ? "scale-[1.02] text-white shadow-xl" : "bg-white hover:bg-pink-50"}`} style={{ backgroundColor: activo ? COR_BIM : "white" }}><h3 className="font-bold">{nome}</h3><p className={`text-sm ${activo ? "text-pink-100" : "text-slate-500"}`}>{horariosTurno[nome]}</p></button>;
+              })}
+            </div>
+            {turno === "Noite" && (
+              <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
+                <label className="mb-2 block text-sm font-bold">Processo principal da noite</label>
+                <select disabled={perfilActivo === "Auditoria"} value={processoNoite} onChange={(e) => { setProcessoNoite(e.target.value); setMensagem(`Processo da noite seleccionado: ${e.target.value}.`); }} className="h-12 w-full rounded-2xl border bg-white px-4 disabled:bg-slate-100">{processosNoite.map((nome) => <option key={nome}>{nome}</option>)}</select>
+                <p className="mt-2 text-xs text-slate-500">Exemplo: Fecho IDW, PCOMB, ITM ou SIMO.</p>
+              </div>
+            )}
+          </Card>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card><CardContent><div className="mb-5 flex items-center justify-between"><div><h2 className="text-2xl font-black">🚨 Incidentes Registados no Turno</h2><p className="text-sm text-slate-500">Eventos operacionais e escalamentos realizados durante o turno.</p></div><Button disabled={!pode.incidentes} onClick={abrirNovoIncidente} className="bg-red-600 text-white">Novo Incidente</Button></div><div className="space-y-4">{incidentes.map((inc) => <div key={inc.id} className="rounded-2xl border bg-slate-50 p-4"><div className="flex justify-between gap-4"><div><div className="flex gap-2"><span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">{inc.id}</span><span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold">{inc.canal}</span></div><h3 className="mt-3 font-bold">{inc.descricao}</h3><p className="mt-1 text-sm text-slate-500">Janela de impacto: {inc.hora}</p></div><div className="flex flex-col items-end gap-2"><span className="h-fit rounded-full bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-700">{inc.estado}</span><div className="flex gap-2"><button disabled={!pode.editarIncidente} onClick={() => editarIncidente(inc)} className="rounded-xl border bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:text-slate-400">Editar</button><button disabled={!pode.eliminar} onClick={() => setIncidenteEliminar(inc)} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:bg-slate-300">Eliminar</button></div></div></div></div>)}</div></CardContent></Card>
+          <Card>
+            <div className="mb-4 flex items-center justify-between"><div><h2 className="text-2xl font-black">📌 Procedimentos do Turno {turno}</h2><p className="text-sm text-slate-500">Marque cada procedimento à medida que for executado.</p></div><span className="rounded-full px-3 py-2 text-xs font-bold text-white" style={{ backgroundColor: COR_BIM }}>{progressoProcedimentos}%</span></div>
+            <div className="space-y-3">
+              {procedimentos.map((p, index) => {
+                const chave = `${turno}-${processoNoite}-${index}`;
+                const feito = Boolean(procedimentosFeitos[chave]);
+                return (
+                  <div key={chave} className={`flex gap-3 rounded-2xl border p-4 ${feito ? "border-emerald-200 bg-emerald-50" : "bg-slate-50"}`}>
+                    <input type="checkbox" checked={feito} disabled={!pode.checklist} onChange={() => toggleProcedimento(index)} className="mt-1 h-5 w-5" style={{ accentColor: COR_BIM }} />
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundColor: feito ? "#059669" : COR_BIM }}>{index + 1}</span>
+                    <div className="flex-1"><span className="mb-2 inline-flex rounded-full bg-white px-3 py-1 text-xs font-bold" style={{ color: COR_BIM }}>⏰ {p.hora}</span><TextoFormatado texto={p.descricao} className={feito ? "font-semibold text-emerald-800 line-through" : "text-slate-700"} />{feito && <p className="mt-1 text-xs font-semibold text-emerald-700">✓ Procedimento executado</p>}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
 
-          <Card><CardContent><h2 className="text-2xl font-black">👨‍💼 Validação do Supervisor</h2><p className="text-sm text-slate-500">Aprovação electrónica do relatório de turno.</p><div className="mt-5 rounded-2xl border bg-slate-50 p-4"><p className="text-sm text-slate-500">Supervisor Responsável</p><h3 className="text-lg font-bold">Idricio Langa</h3><div className="mt-3 rounded-xl bg-white p-3 text-sm border"><b>Perfil activo:</b> {perfilActivo}<br/><b>Nível:</b> {perfilActivo === "Administrador" ? "Acesso Total" : perfilActivo === "Supervisor" ? "Validação e Supervisão" : perfilActivo === "Auditoria" ? "Somente Leitura" : "Operacional"}</div></div><textarea disabled={!pode.validar} value={comentarioSupervisor} onChange={(e) => setComentarioSupervisor(e.target.value)} placeholder="Comentário do supervisor" className="mt-4 h-32 w-full rounded-2xl border p-3 disabled:bg-slate-100" /><div className="mt-4 grid grid-cols-2 gap-3"><Button onClick={validarRelatorio} disabled={!pode.validar} className="bg-emerald-500 text-white">✓ Validar</Button><Button onClick={rejeitarRelatorio} disabled={!pode.validar} className="bg-red-500 text-white">✕ Rejeitar</Button></div></CardContent></Card>
+          {pode.configurar ? (
+            <Card>
+              <h2 className="text-2xl font-black">➕ Adicionar Procedimento</h2>
+              <p className="mb-3 text-sm text-slate-500">Use Enter para separar linhas e **texto** para destacar.</p>
+              <input value={novoProcedimento.hora} onChange={(e) => setNovoProcedimento({ ...novoProcedimento, hora: e.target.value })} placeholder="Hora. Ex: 01:00" className="mb-3 h-12 w-full rounded-2xl border px-4" />
+              <textarea value={novoProcedimento.descricao} onChange={(e) => setNovoProcedimento({ ...novoProcedimento, descricao: e.target.value })} placeholder="Descrição do procedimento" className="mb-3 h-36 w-full rounded-2xl border p-4" />
+              <Button onClick={adicionarProcedimento} className="bg-pink-700 text-white">Adicionar</Button>
+            </Card>
+          ) : <Card><h2 className="text-xl font-bold">Modo Operador</h2><p className="text-sm text-slate-500">O operador apenas executa, marca e submete.</p></Card>}
         </div>
 
-        <Card><CardContent><div className="mb-5 flex items-center justify-between"><div><h2 className="text-2xl font-black">📚 Histórico de Relatórios</h2><p className="text-sm text-slate-500">Clique em Ver para abrir o relatório detalhado.</p></div><input value={pesquisa} onChange={(e) => setPesquisa(e.target.value)} placeholder="Pesquisar..." className="h-11 rounded-2xl border px-4" /></div><div className="overflow-x-auto rounded-2xl border bg-white"><table className="w-full min-w-[860px] text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-4">Relatório</th><th className="p-4">Data</th><th className="p-4">Operador</th><th className="p-4">Turno</th><th className="p-4">Progresso</th><th className="p-4">Estado</th><th className="p-4">Acções</th></tr></thead><tbody>{relatoriosFiltrados.map((r) => <tr key={r.id} className="border-t"><td className="p-4 font-semibold">{r.id}</td><td className="p-4">{r.data}</td><td className="p-4">👤 {r.operadoresTurno}</td><td className="p-4">{r.turno}<br /><span className="text-xs text-slate-500">{r.hora}</span></td><td className="p-4"><div className="h-2 w-28 rounded-full bg-slate-200"><div className="h-2 rounded-full" style={{ width: `${r.progresso}%`, backgroundColor: COR_BIM }} /></div>{r.progresso}%</td><td className="p-4"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${estadoClasse(r.estado)}`}>{r.estado}</span></td><td className="p-4"><Button onClick={() => setRelatorioAberto(r)} className="bg-white text-slate-900">📄 Ver</Button></td></tr>)}</tbody></table></div></CardContent></Card>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <div className="mb-4 flex items-center justify-between"><div><h2 className="text-2xl font-black">✅ Checklist do Turno {turno}</h2><p className="text-sm text-slate-500">Progresso: {progressoChecklist}%</p></div></div>
+            <div className="overflow-x-auto rounded-2xl border bg-white">
+              <table className="w-full min-w-[800px] text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500"><tr><th className="p-4">Feito</th><th className="p-4">Categoria</th><th className="p-4">Actividade</th><th className="p-4">Horário</th><th className="p-4">Obs.</th></tr></thead>
+                <tbody>{checklist.map((item) => <tr key={item.id} className="border-t"><td className="p-4"><input type="checkbox" checked={item.feito} disabled={!pode.checklist} onChange={() => toggleChecklist(item.id)} className="h-5 w-5" style={{ accentColor: COR_BIM }} /></td><td className="p-4 font-medium">{item.categoria}</td><td className="p-4">{item.tarefa}</td><td className="p-4">{item.horario}</td><td className="p-4">{item.observacao}</td></tr>)}</tbody>
+              </table>
+            </div>
+          </Card>
+
+          {pode.configurar ? (
+            <Card>
+              <h2 className="text-2xl font-black">➕ Adicionar Checklist</h2>
+              <p className="mb-3 text-sm text-slate-500">Adiciona uma nova actividade à checklist do turno seleccionado.</p>
+              <input value={novaChecklist.categoria} onChange={(e) => setNovaChecklist({ ...novaChecklist, categoria: e.target.value })} placeholder="Categoria. Ex: PCOMB" className="mb-3 h-12 w-full rounded-2xl border px-4" />
+              <input value={novaChecklist.tarefa} onChange={(e) => setNovaChecklist({ ...novaChecklist, tarefa: e.target.value })} placeholder="Actividade da checklist" className="mb-3 h-12 w-full rounded-2xl border px-4" />
+              <input value={novaChecklist.horario} onChange={(e) => setNovaChecklist({ ...novaChecklist, horario: e.target.value })} placeholder="Horário. Ex: 02:30" className="mb-3 h-12 w-full rounded-2xl border px-4" />
+              <Button onClick={adicionarChecklist} className="bg-pink-700 text-white">Adicionar Checklist</Button>
+            </Card>
+          ) : <Card><h2 className="text-xl font-bold">Checklist</h2><p className="text-sm text-slate-500">A criação fica apenas para Supervisor/Admin.</p></Card>}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <div className="mb-4 flex items-center justify-between">
+              <div><div className="mb-3 flex gap-2"><input placeholder="Pesquisar WO / INC" className="h-10 flex-1 rounded-xl border px-3" /><Button className="bg-slate-800 text-white">Pesquisar</Button></div><h2 className="text-2xl font-black">🚨 Incidentes</h2><p className="text-sm text-slate-500">Registos do turno.</p></div>
+              {pode.incidentes && <Button onClick={adicionarIncidente} className="bg-red-600 text-white">Novo Incidente</Button>}
+            </div>
+            <div className="space-y-3">{incidentes.map((inc) => <div key={inc.id} className="rounded-2xl border bg-slate-50 p-4"><b>{inc.id}</b><p>{inc.descricao}</p><span className="text-xs text-slate-500">{inc.canal} • {inc.estado}</span></div>)}</div>
+          </Card>
+
+          <Card>
+            <h2 className="text-2xl font-black">📄 Relatório do Turno</h2>
+            <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm">
+              <div className="flex justify-between"><span>Turno</span><b>{turno}</b></div>
+              <div className="flex justify-between"><span>Processo da Noite</span><b>{turno === "Noite" ? processoNoite : "N/A"}</b></div>
+              <div className="flex justify-between"><span>Operadores</span><b>{[operador1, operador2].filter(Boolean).join(" / ")}</b></div>
+              <div className="flex justify-between"><span>Checklist</span><b>{progressoChecklist}%</b></div>
+              <div className="flex justify-between"><span>Procedimentos</span><b>{progressoProcedimentos}%</b></div>
+              <div className="flex justify-between"><span>Estado do Relatório</span><b>{estadoRelatorio}</b></div>
+            </div>
+            <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} disabled={!pode.checklist} placeholder="Observações do turno" className="mt-4 h-28 w-full rounded-2xl border p-4 disabled:bg-slate-100" />
+            <div className="mt-4 rounded-3xl border-2 border-dashed border-pink-300 bg-pink-50/60 p-5">
+              <h3 className="mb-2 text-lg font-black">📎 Upload Evidências / Relatório</h3>
+              <p className="mb-3 text-sm text-slate-600">Anexe PDF, Excel, screenshots, relatórios SIMO ou evidências ATM/POS antes de submeter.</p>
+              <label className={`flex cursor-pointer flex-col items-center justify-center rounded-3xl border bg-white p-6 text-center shadow-sm transition ${!pode.checklist ? "cursor-not-allowed opacity-50" : "hover:bg-pink-50"}`}>
+                <span className="text-4xl">📤</span><b className="mt-2">Clique aqui para seleccionar ficheiros</b><span className="mt-1 text-xs text-slate-500">Pode seleccionar vários ficheiros ao mesmo tempo</span>
+                <input type="file" multiple disabled={!pode.checklist} onChange={carregarFicheiros} className="hidden" accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.txt,.doc,.docx" />
+              </label>
+              {ficheirosRelatorio.length > 0 && <div className="mt-4 space-y-2"><p className="text-sm font-bold text-slate-700">Ficheiros anexados: {ficheirosRelatorio.length}</p>{ficheirosRelatorio.map((f) => <div key={f.id} className="flex items-center justify-between rounded-2xl border bg-white p-3 text-sm"><div><b>✓ {f.nome}</b><p className="text-xs text-slate-500">{f.tipo} • {formatarTamanho(f.tamanho)}</p></div><button type="button" onClick={() => removerFicheiro(f.id)} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Remover</button></div>)}</div>}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3"><Button onClick={submeterRelatorio} disabled={!pode.checklist} className="bg-pink-700 text-white">Submeter Relatório no SQL</Button>{pode.validar && <Button onClick={validarRelatorio} className="bg-emerald-600 text-white">Validar</Button>}</div>
+          </Card>
+        </div>
       </div>
-
-      {incidenteEliminar && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><h2 className="text-2xl font-bold">Eliminar Incidente</h2><p className="mt-3 text-sm text-slate-600">Tem certeza que pretende eliminar o incidente <b>{incidenteEliminar.id}</b>?</p><div className="mt-6 flex justify-end gap-3"><Button onClick={() => setIncidenteEliminar(null)} className="bg-white text-slate-900">Cancelar</Button><Button disabled={!pode.eliminar} onClick={confirmarEliminarIncidente} className="bg-red-600 text-white">Eliminar</Button></div></div></div>}
-
-      {modalIncidente && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-2xl font-bold">{incidenteEditarId ? "Actualizar Incidente" : "Novo Incidente"}</h2><p className="text-sm text-slate-500">Registo operacional de incidente do turno.</p></div><button onClick={() => setModalIncidente(false)} className="rounded-xl border px-3 py-2">✕</button></div><div className="grid gap-4 md:grid-cols-2"><input value={formIncidente.referencia} onChange={(e) => setFormIncidente({ ...formIncidente, referencia: e.target.value })} placeholder="Referência INC/WO" className="h-12 rounded-2xl border px-4" /><select value={formIncidente.canal} onChange={(e) => setFormIncidente({ ...formIncidente, canal: e.target.value })} className="h-12 rounded-2xl border px-4"><option>ATM/POS</option><option>Batch</option><option>PCOMB</option><option>Cartões</option><option>SIMO</option><option>Mobile</option></select><input value={formIncidente.hora} onChange={(e) => setFormIncidente({ ...formIncidente, hora: e.target.value })} placeholder="14h40 - 17h00" className="h-12 rounded-2xl border px-4" /><select value={formIncidente.estado} onChange={(e) => setFormIncidente({ ...formIncidente, estado: e.target.value })} className="h-12 rounded-2xl border px-4"><option>Em acompanhamento</option><option>Escalado à SIMO</option><option>Resolvido</option><option>Pendente</option></select></div><textarea value={formIncidente.descricao} onChange={(e) => setFormIncidente({ ...formIncidente, descricao: e.target.value })} placeholder="Descrição do incidente" className="mt-4 h-32 w-full rounded-2xl border p-4" /><div className="mt-6 flex justify-end gap-3"><Button onClick={() => setModalIncidente(false)} className="bg-white text-slate-900">Cancelar</Button><Button onClick={gravarIncidente} className="text-white" style={{ backgroundColor: COR_BIM }}>{incidenteEditarId ? "Actualizar Incidente" : "Registar Incidente"}</Button></div></div></div>}
-
-      {relatorioAberto && <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4"><div className="my-6 w-full max-w-5xl rounded-3xl bg-white p-6 shadow-2xl"><div className="mb-6 flex justify-between border-b pb-4"><div><p className="text-sm font-bold uppercase text-slate-500">Departamento de Sistemas • Exploração</p><h2 className="text-3xl font-bold">Relatório Operacional do Turno</h2><p className="text-slate-500">{relatorioAberto.id}</p></div><Button onClick={() => setRelatorioAberto(null)} className="bg-white text-slate-900">Fechar</Button></div><div className="grid gap-4 md:grid-cols-4"><div className="rounded-2xl bg-slate-50 p-4 md:col-span-2"><p className="text-xs text-slate-500">Operadores</p><b>{relatorioAberto.operadoresTurno || "—"}</b></div><div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Turno</p><b>{relatorioAberto.turno || "—"}</b></div><div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Estado</p><b>{relatorioAberto.estado || "—"}</b></div><div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Supervisor</p><b>{relatorioAberto.supervisor || "Idricio Langa"}</b></div></div><div className="mt-6 rounded-2xl border bg-[#FCE4EC] p-4"><h3 className="font-bold">Resumo Executivo</h3><p className="mt-2 text-sm">Checklist: {relatorioAberto.progresso || 0}% | Estado: {relatorioAberto.estado || "—"}</p></div></div></div>}
     </div>
   );
 }
